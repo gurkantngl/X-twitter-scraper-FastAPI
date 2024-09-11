@@ -7,7 +7,11 @@ import json
 import asyncio
 import uuid
 
-app = FastAPI()
+app = FastAPI(
+    title="Twitter Scraper API",
+    description="Twitter kullanıcılarının tweetlerini kazıma ve yönetme API'si",
+    version="1.0.0"
+)
 MONGO_URI = "mongodb://root:p2f9FXGxhdmPtEp8rmOv6ykKm0v8i1FNTmBWUqcDk9O0BiDsAzlDdQCLYQKuFc4R@95.217.39.116:5424/?directConnection=true"
 
 # In-memory storage for scraping tasks
@@ -15,8 +19,8 @@ scraping_tasks = {}
 websocket_connections = {}
 
 class ScrapeRequest(BaseModel):
-    username: str
-    tweet_count: int = Field(..., gt=0)
+    username: str = Field(..., description="Scrape edilecek kullanıcının username'i")
+    tweet_count: int = Field(..., gt=0, description="Scrape edilecek tweet sayısı")
 
 async def update_progress(task_id: str, scraped_tweets: int, total_tweets: int):
     scraping_tasks[task_id]['scraped_tweets'] = scraped_tweets
@@ -59,8 +63,18 @@ async def scrape_task(task_id: str, username: str, tweet_count: int):
     finally:
         await notify_clients(task_id)
 
-@app.post("/scrape")
+@app.post("/scrape", tags=["Scraping"])
 async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks):
+    """
+    Belirtilen kullanıcı için tweet kazıma işlemini başlatır.
+    
+    - **username**: Kazınacak Twitter kullanıcı adı
+    - **tweet_count**: Kazınacak tweet sayısı
+    
+    Yanıt olarak bir task id döndürür.
+    """
+
+
     task_id = str(uuid.uuid4())
     scraping_tasks[task_id] = {
         'status': 'Initiated',
@@ -75,6 +89,15 @@ async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks
 
 @app.websocket("/ws/scrape/{task_id}")
 async def websocket_endpoint(websocket: WebSocket, task_id: str):
+    """
+    Belirli bir kazıma görevi için WebSocket bağlantısı kurar.
+    
+    - **task_id**: İzlenecek kazıma görevinin kimliği
+    
+    Gerçek zamanlı ilerleme güncellemeleri sağlar.
+    """
+
+
     await websocket.accept()
     if task_id not in websocket_connections:
         websocket_connections[task_id] = set()
@@ -88,8 +111,17 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
             del websocket_connections[task_id]
 
 
-@app.get("/tweets/{username}")
+@app.get("/tweets/{username}", tags=["Tweets"])
 async def get_tweets(username: str):
+    """
+    Belirli bir kullanıcının kazınmış tweetlerini getirir.
+    
+    - **username**: Tweetleri getirilecek kullanıcı adı
+    
+    Kullanıcının tüm kazınmış tweetlerini içeren bir liste döndürür.
+    """
+
+
     try:
         client = MongoClient(MONGO_URI)
         db = client["Tweets"]
@@ -101,6 +133,32 @@ async def get_tweets(username: str):
         return {"tweets": tweets_json}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve tweets: {str(e)}")
+    finally:
+        client.close()
+
+@app.get("/all_tweets", tags=["Tweets"])
+async def get_all_tweets():
+    """
+    Tüm kazınmış tweetleri getirir.
+    
+    Tüm kullanıcıların kazınmış tweetlerini içeren bir sözlük döndürür.
+    Her kullanıcı adı bir anahtar olarak kullanılır ve değeri tweet listesidir.
+    """
+
+
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client["Tweets"]
+        
+        all_tweets = {}
+        for collection_name in db.list_collection_names():
+            collection = db[collection_name]
+            tweets = list(collection.find())
+            all_tweets[collection_name] = json.loads(json_util.dumps(tweets))
+        
+        return {"all_tweets": all_tweets}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tüm tweetleri alırken hata oluştu: {str(e)}")
     finally:
         client.close()
 
