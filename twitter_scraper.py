@@ -95,9 +95,6 @@ class Twitter_Scraper:
             self.driver.quit()
             sys.exit(1)
 
-        
-        # Remove the login() call
-        # self.login()  # This line should be removed or commented out
 
     def _config_scraper(
         self,
@@ -117,29 +114,13 @@ class Twitter_Scraper:
         self.scraper_details = {
             "type": None,
             "username": scrape_username,
-            "hashtag": str(scrape_hashtag).replace("#", "")
-            if scrape_hashtag is not None
-            else None,
             "query": scrape_query,
             "tab": "Latest" if scrape_latest else "Top" if scrape_top else "Latest",
             "poster_details": scrape_poster_details,
         }
         self.router = self.go_to_home
         self.scroller = Scroller(self.driver)
-
-        if scrape_username is not None:
-            self.scraper_details["type"] = "Username"
-            self.router = self.go_to_profile
-        elif scrape_hashtag is not None:
-            self.scraper_details["type"] = "Hashtag"
-            self.router = self.go_to_hashtag
-        elif scrape_query is not None:
-            self.scraper_details["type"] = "Query"
-            self.router = self.go_to_search
-        else:
-            self.scraper_details["type"] = "Home"
-            self.router = self.go_to_home
-        pass
+        self.router = self.go_to_profile
 
     def _get_driver(self, proxy=None):
         print("Firefox sürücüsü ayarlanıyor...")
@@ -163,127 +144,8 @@ class Twitter_Scraper:
         except Exception as e:
             print(f"Firefox sürücüsü başlatılırken hata oluştu: {e}")
             raise
+ 
 
-    def login(self):
-        print()
-        print("Logging in to Twitter...")
-
-        try:
-            self.driver.maximize_window()
-            self.driver.get(TWITTER_LOGIN_URL)
-            sleep(3)
-
-            self._input_username()
-            self._input_unusual_activity()
-            self._input_password()
-
-            cookies = self.driver.get_cookies()
-
-            auth_token = None
-
-            for cookie in cookies:
-                if cookie["name"] == "auth_token":
-                    auth_token = cookie["value"]
-                    break
-
-            if auth_token is None:
-                raise ValueError(
-                    """This may be due to the following:
-
-- Internet connection is unstable
-- Username is incorrect
-- Password is incorrect
-"""
-                )
-
-            print()
-            print("Login Successful")
-            print()
-        except Exception as e:
-            print()
-            print(f"Login Failed: {e}")
-            sys.exit(1)
-
-        pass
-
-    def _input_username(self):
-        input_attempt = 0
-
-        while True:
-            try:
-                username = self.driver.find_element(
-                    "xpath", "//input[@autocomplete='username']"
-                )
-
-                username.send_keys(self.username)
-                username.send_keys(Keys.RETURN)
-                sleep(3)
-                break
-            except NoSuchElementException:
-                input_attempt += 1
-                if input_attempt >= 3:
-                    print()
-                    print(
-                        """There was an error inputting the username.
-
-It may be due to the following:
-- Internet connection is unstable
-- Username is incorrect
-- Twitter is experiencing unusual activity"""
-                    )
-                    self.driver.quit()
-                    sys.exit(1)
-                else:
-                    print("Re-attempting to input username...")
-                    sleep(2)
-
-    def _input_unusual_activity(self):
-        input_attempt = 0
-
-        while True:
-            try:
-                unusual_activity = self.driver.find_element(
-                    "xpath", "//input[@data-testid='ocfEnterTextTextInput']"
-                )
-                unusual_activity.send_keys(self.username)
-                unusual_activity.send_keys(Keys.RETURN)
-                sleep(3)
-                break
-            except NoSuchElementException:
-                input_attempt += 1
-                if input_attempt >= 3:
-                    break
-
-    def _input_password(self):
-        input_attempt = 0
-
-        while True:
-            try:
-                password = self.driver.find_element(
-                    "xpath", "//input[@autocomplete='current-password']"
-                )
-
-                password.send_keys(self.password)
-                password.send_keys(Keys.RETURN)
-                sleep(3)
-                break
-            except NoSuchElementException:
-                input_attempt += 1
-                if input_attempt >= 3:
-                    print()
-                    print(
-                        """There was an error inputting the password.
-
-It may be due to the following:
-- Internet connection is unstable
-- Password is incorrect
-- Twitter is experiencing unusual activity"""
-                    )
-                    self.driver.quit()
-                    sys.exit(1)
-                else:
-                    print("Re-attempting to input password...")
-                    sleep(2)
 
     def go_to_home(self):
         self.driver.get("https://twitter.com/home")
@@ -291,45 +153,10 @@ It may be due to the following:
         pass
 
     def go_to_profile(self):
-        if (
-            self.scraper_details["username"] is None
-            or self.scraper_details["username"] == ""
-        ):
-            print("Username is not set.")
-            sys.exit(1)
-        else:
-            self.driver.get(f"https://twitter.com/{self.scraper_details['username']}")
-            sleep(3)
+        self.driver.get(f"https://twitter.com/{self.scraper_details['username']}")
+        sleep(3)
         pass
 
-    def go_to_hashtag(self):
-        if (
-            self.scraper_details["hashtag"] is None
-            or self.scraper_details["hashtag"] == ""
-        ):
-            print("Hashtag is not set.")
-            sys.exit(1)
-        else:
-            url = f"https://twitter.com/hashtag/{self.scraper_details['hashtag']}?src=hashtag_click"
-            if self.scraper_details["tab"] == "Latest":
-                url += "&f=live"
-
-            self.driver.get(url)
-            sleep(3)
-        pass
-
-    def go_to_search(self):
-        if self.scraper_details["query"] is None or self.scraper_details["query"] == "":
-            print("Query is not set.")
-            sys.exit(1)
-        else:
-            url = f"https://twitter.com/search?q={self.scraper_details['query']}&src=typed_query"
-            if self.scraper_details["tab"] == "Latest":
-                url += "&f=live"
-
-            self.driver.get(url)
-            sleep(3)
-        pass
 
     def get_tweet_cards(self):
         self.tweet_cards = self.driver.find_elements(
@@ -337,19 +164,6 @@ It may be due to the following:
         )
         pass
 
-    def remove_hidden_cards(self):
-        try:
-            hidden_cards = self.driver.find_elements(
-                "xpath", '//article[@data-testid="tweet" and @disabled]'
-            )
-
-            for card in hidden_cards[1:-2]:
-                self.driver.execute_script(
-                    "arguments[0].parentNode.parentNode.parentNode.remove();", card
-                )
-        except Exception as e:
-            return
-        pass
 
     async def scrape_tweets(
         self,
@@ -381,24 +195,7 @@ It may be due to the following:
 
         router()
 
-        if self.scraper_details["type"] == "Username":
-            print(
-                "Scraping Tweets from @{}...".format(self.scraper_details["username"])
-            )
-        elif self.scraper_details["type"] == "Hashtag":
-            print(
-                "Scraping {} Tweets from #{}...".format(
-                    self.scraper_details["tab"], self.scraper_details["hashtag"]
-                )
-            )
-        elif self.scraper_details["type"] == "Query":
-            print(
-                "Scraping {} Tweets from {} search...".format(
-                    self.scraper_details["tab"], self.scraper_details["query"]
-                )
-            )
-        elif self.scraper_details["type"] == "Home":
-            print("Scraping Tweets from Home...")
+        print("Scraping Tweets from @{}...".format(self.scraper_details["username"]))
 
         # Accept cookies to make the banner disappear
         try:
@@ -571,5 +368,3 @@ It may be due to the following:
                 collection.update_one({"_id": tweet["_id"]}, {"$set": update_data})
                 print(f"Existing tweet updated: {tweet['Tweet Link']}")
 
-    def get_tweets(self):
-        return self.data
