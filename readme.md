@@ -69,5 +69,3 @@ GET /all_tweets
    ```
    GET /all_tweets
    ```
-
-Bu API ile Twitter verilerini kolayca kazıyabilir ve yönetebilirsiniz. İyi kullanımlar!
